@@ -51,8 +51,8 @@ function ListItem({ item, displayType, indent }: {
    console.log(`ListItem renders: ${listItemRenders}`)
 
    const label = displayType === 'hidden' ? <span>{item.label}</span>
-      : displayType === 'prefix' ? <><span className="pr-1 text-neutral-500 float-left">{item.address + " - "}</span> {item.label}</>
-         : displayType === 'suffix' ? <><span>{`${item.label}`}</span> <span className="pl-1 text-neutral-500 float-left">{`( ${item.address} )`}</span></>
+      : displayType === 'prefix' ? <><span className="pr-1 text-neutral-400 float-left">{item.address + " - "}</span> {item.label}</>
+         : displayType === 'suffix' ? <>{`${item.label}`} <span className="pl-1 text-neutral-400">{`( ${item.address} )`}</span></>
             : 'INVALID'
 
 
