@@ -85,22 +85,24 @@ function App() {
 
    return (
       <div className="App text-neutral-800 dark:bg-slate-800 dark:text-white max-h-full text-left">
-         <div key="Pickers" className="p-2 flex justify-end">
+         <div className='flex justify-between items-center'>
+            <span className="p-3 text-lg">Random files with Luhmann addresses</span>
+            <div key="Pickers" className="p-2 flex justify-end">
 
+               <input type="checkbox" name="indentCheckbox" id="indentCheckbox" checked={isIndenting} onClick={ev => toggleIndenting()} />
+               <span className="pl-1 pr-4 hover:cursor-default" onClick={ev => toggleIndenting()} >Indent</span>
 
-            <input type="checkbox" name="indentCheckbox" id="indentCheckbox" checked={isIndenting} onClick={ev => toggleIndenting()} />
-            <span className="pl-1 pr-4 hover:cursor-default" onClick={ev => toggleIndenting()} >Indent</span>
-
-            <span>Display Type:</span>
-            <select className="pl-2 dark:text-inherit dark:bg-inherit"
-               value={displayType}
-               onChange={ev => setDisplayType(ev.target.value as DisplayType)}
-               name="displayType" id="displayType"
-            >
-               <option value="prefix">Prefix</option>
-               <option value="suffix">Suffix</option>
-               <option value="hidden">Hidden</option>
-            </select>
+               <span>Display Type:</span>
+               <select className="pl-2 dark:text-inherit dark:bg-inherit"
+                  value={displayType}
+                  onChange={ev => setDisplayType(ev.target.value as DisplayType)}
+                  name="displayType" id="displayType"
+               >
+                  <option value="prefix">Prefix</option>
+                  <option value="suffix">Suffix</option>
+                  <option value="hidden">Hidden</option>
+               </select>
+            </div>
          </div>
          <div key="list" className="List">
             {items.map((item, i) =>
