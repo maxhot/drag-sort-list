@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import './App.css';
 import { faker } from '@faker-js/faker';
 import generateAddresses, { Address } from './utils/addresses';
 import useToggle from './hooks/useToggle';
-// import { FixedSizeList } from 'react-window' // TODO
+import { FixedSizeList, VariableSizeList } from 'react-window'
+import AutoSizer from "react-virtualized-auto-sizer";
 
 
 // TODO: use react-window
@@ -15,7 +16,7 @@ const DEFAULT_INDENT = true
 
 const LEN = 100
 const addresses: Address[] = generateAddresses(LEN) // TODO: include indentation
-console.log("addresses:", addresses)
+
 const items: Item[] = Array(LEN).fill(null).map((_, i) => {
    const numAddr = addresses[i].numAddress // shorthand 
    const borderTop = i === 0 || numAddr.length > addresses[i - 1].numAddress.length// shorter address => less indent => more exposed
@@ -36,34 +37,34 @@ type Item = {
    address: string,
    numAddress: number[],
    itemKey: string,
-   borderTop: boolean,
-   borderBottom: boolean,
+   // no longer needed with negative margin hack
+   borderTop?: boolean,
+   borderBottom?: boolean,
 }
 
 type DisplayType = 'prefix' | 'suffix' | 'hidden'
 
-function ListItem({ item, displayType, indent }: {
+// TODO: Make draggable
+const ListRowItem = memo(({ item, displayType, indent }: {
    item: Item
    displayType?: DisplayType
    indent: number
-}) {
-   listItemRenders++
-   console.log(`ListItem renders: ${listItemRenders}`)
+   label?: string // allows container to deal with displayType, indentation, etc?
+}) => {
+   console.log(`List Items rendered: ${++listItemRenders}`)
 
    const label = displayType === 'hidden' ? <span>{item.label}</span>
       : displayType === 'prefix' ? <><span className="pr-1 text-neutral-400 float-left">{item.address + " - "}</span> {item.label}</>
          : displayType === 'suffix' ? <>{`${item.label}`} <span className="pl-1 text-neutral-400">{`( ${item.address} )`}</span></>
             : 'INVALID'
 
-
-   const simpleLabel = displayType === 'hidden' ? `${item.label}`
-      : displayType === 'prefix' ? `${item.address} - ${item.label}`
-         : displayType === 'suffix' ? `${item.label} ( ${item.address} )`
-            : 'INVALID'
+   // const simpleLabel = displayType === 'hidden' ? `${item.label}`
+   //    : displayType === 'prefix' ? `${item.address} - ${item.label}`
+   //       : displayType === 'suffix' ? `${item.label} ( ${item.address} )`
+   //          : 'INVALID'
 
    const indentLevels = [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
    const indentLvl = indentLevels[Math.min(indent, indentLevels.length - 1)]
-   console.log("Indenting: ", indentLvl)
    return (
       <div
          key={item.itemKey}
@@ -77,16 +78,17 @@ function ListItem({ item, displayType, indent }: {
          {label}
       </ div >
    )
-}
+})
+
 function App() {
    // display options
    const [displayType, setDisplayType] = useState<DisplayType>("prefix")
    const [isIndenting, toggleIndenting] = useToggle(DEFAULT_INDENT)
 
    return (
-      <div className="App text-neutral-800 dark:bg-slate-800 dark:text-white max-h-full text-left">
+      <div className="App text-neutral-800 dark:bg-slate-800 dark:text-white max-h-full text-left flex flex-col h-screen">
          <div className='flex justify-between items-center'>
-            <span className="p-3 text-lg">Random files with Luhmann addresses</span>
+            <span className="p-3 text-lg">{LEN} Random files with Luhmann addresses</span>
             <div key="Pickers" className="p-2 flex justify-end">
 
                <input type="checkbox" name="indentCheckbox" id="indentCheckbox" checked={isIndenting} onClick={ev => toggleIndenting()} />
@@ -104,18 +106,56 @@ function App() {
                </select>
             </div>
          </div>
-         <div key="list" className="List">
-            {items.map((item, i) =>
-               <ListItem
-                  key={item.itemKey}
-                  item={item}
-                  displayType={displayType}
-                  indent={isIndenting ? item.numAddress.length - 1 : 0}
-               />
-            )}
+         <div className="max-h-full" style={{ height: "100%" }}>
+            <RegularList {...{ items, displayType, isIndenting }} />
+            {/* FIXME <AutoReactWindowList {...{ items, displayType, isIndenting }} /> */}
          </div>
       </div >
    );
+}
+
+function RegularList({ items, displayType, isIndenting }: {
+   items: Item[]
+   displayType: DisplayType
+   isIndenting: boolean
+}) {
+   return <div key="list" className="List">
+      {items.map((item, i) => (
+         <ListRowItem
+            key={item.itemKey}
+            item={item}
+            displayType={displayType}
+            indent={!isIndenting ? 0 : item.numAddress.length - 1}
+         />
+      ))}
+   </div>
+}
+
+function AutoReactWindowList({ items, displayType, isIndenting }: {
+   items: Item[]
+   displayType: DisplayType
+   isIndenting: boolean
+}) {
+   return (<AutoSizer>
+      {({ height, width }) => (
+         <FixedSizeList
+            className="ReactWindowList"
+            height={height}
+            width={width}
+            itemCount={items.length}
+            itemSize={40} // best estimate
+         >
+            {({ index, style }) => (
+               <ListRowItem
+                  key={items[index].itemKey}
+                  item={items[index]}
+                  displayType={displayType}
+                  indent={!isIndenting ? 0 : items[index].numAddress.length - 1}
+               />
+            )}
+         </FixedSizeList>
+      )}
+   </AutoSizer>)
 }
 
 export default App;
