@@ -179,7 +179,7 @@ function RegularList({ items, displayType, isIndenting, ...props }: {
             invar(origItem, `Orig Item should exist! (at key: ${draggedItemKey}`)
             invar(hoverItem, "Hover Item should exist!")
 
-            // TODO: move this into ItemList class
+            // TODO: move this into SlipboxFiles class
             // ( maybe rename to SlipboxFiles ?? )
             const newNumAddr = [...hoverItem.numAddress]
             if (dropType === 'child') newNumAddr.push(1)
@@ -192,7 +192,6 @@ function RegularList({ items, displayType, isIndenting, ...props }: {
                numAddress: newNumAddr,
                address: newStrAddr,
                itemKey: `${origItem?.itemKey}+${dropType}`
-               // TODO: we need some way to indicate where we're dropping things
             }
 
             return (
@@ -214,11 +213,9 @@ function RegularList({ items, displayType, isIndenting, ...props }: {
       itemList.splice(insertIdx, 0, ...dropZones)
    }
 
-   return <div key="list" className="List">{itemList}</div>
-   // return
-   // <AnimatePresence>
-
-   // </AnimatePresence>
+   return <AnimatePresence>
+      {itemList}
+   </AnimatePresence>
 }
 
 
@@ -236,9 +233,7 @@ const ListRowItem = memo(({ item, displayType = 'prefix', indent = 0, ...props }
    dndCallbacks: DragDropHandlerType[]
    dragDropCallback: DragDropCallback
 }) => {
-   ++listItemRendered
-   // TODO: debounce this
-   // console.log(`List Items rendered: ${listItemRendered}`)
+   ++listItemRendered // telemetry
 
    const labelSpan = <span className={`${item.isDropZone && "invisible"}`} > {item.label}</span >
    const label = displayType === 'hidden'
@@ -251,8 +246,14 @@ const ListRowItem = memo(({ item, displayType = 'prefix', indent = 0, ...props }
 
    const indentLevels = [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
    const indentLvl = indentLevels[Math.min(indent, indentLevels.length - 1)]
+
+   const motionProps = {
+      layout: true,
+   }
+   // inspiration: https://codesandbox.io/s/framer-motion-list-transitions-forked-nqd2r?file=/src/App.js:2065-2089
    return (
-      <div
+      <motion.div
+         {...motionProps}
          key={item.itemKey}
          className={`p-1 pl-8 dark:border-neutral-600 text-left justify-start border-y-neutral-200 border-y-2 border-solid border-2 ${item.isDropZone && 'border-dashed'}`}
          draggable
@@ -266,7 +267,7 @@ const ListRowItem = memo(({ item, displayType = 'prefix', indent = 0, ...props }
             (obj, evType: DragDropHandlerType) => {
                obj[evType] = (ev: Event) => {
                   props.dragDropCallback(item, evType, ev)
-                  // ev.preventDefault() // this will prevent associated enter events
+                  // ev.preventDefault() // no this will prevent events that need to be propagated enter events
                };
                return obj
             }
@@ -278,7 +279,7 @@ const ListRowItem = memo(({ item, displayType = 'prefix', indent = 0, ...props }
          )}
       >
          {label}
-      </ div >
+      </motion.div >
    )
 })
 

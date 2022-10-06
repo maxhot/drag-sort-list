@@ -67,6 +67,7 @@ export class SlipboxFiles {
 
       const newItem: Item = {
          ...dropItem,
+         itemKey: itemKey, // use original item key to help AnimatePresence
          // isDropZone: false,
       }
       delete newItem.isDropZone
