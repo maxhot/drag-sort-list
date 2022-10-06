@@ -5,3 +5,8 @@ export default function useToggle(initialValue: boolean): [boolean, () => void] 
    const toggleFn = useCallback(() => setVal((val: boolean) => !val), [])
    return [val, toggleFn]
 }
+
+export function useForceReRender() {
+   const [_, toggleFn] = useToggle(false)
+   return toggleFn
+}

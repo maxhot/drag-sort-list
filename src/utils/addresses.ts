@@ -1,11 +1,136 @@
-import invariant from "tiny-invariant"
+import invar from "tiny-invariant"
+
+
+// TODO: move entire subtree
+// TODO: don't let any parent move into its own subtree (no direct ancestor moves)
 
 export type Address = {
    strAddress: string,
    numAddress: number[],
 }
+export type DropType = 'child' | 'sibling'
 
-function generateAddresses(length: number): Address[] {
+export type Item = {
+   label?: string,
+   address: string,
+   numAddress: number[],
+   itemKey: string,
+   isDropZone?: boolean
+}
+
+export class SlipboxFiles {
+   private _items: Item[] = []
+   constructor(filenames: string[]) {
+      const start = Date.now()
+      const addresses: Address[] = generateRandomSortedAddresses(filenames.length)
+      this._items = filenames.map((label, i) => (
+         {
+            label: filenames[i],
+            address: addresses[i].strAddress,
+            numAddress: addresses[i].numAddress,
+            itemKey: "" + i,
+         }
+      ))
+      const end = Date.now()
+      console.log(`generated ${filenames.length} random addresses in ${end - start}ms`)
+
+      // TODO: build Map<itemKey, item> for O(1) lookup
+   }
+
+   getItems(): Item[] { return this._items }
+
+   getItem(itemKey: string): Item | undefined {
+      return this._items.find(item => item.itemKey === itemKey)
+   }
+   getItemIndex(itemKey: string): number {
+      return this._items.findIndex(item => item.itemKey === itemKey)
+   }
+
+   // a more elegant alternative to canDrop()
+   getDropZoneItems(hoverItemKey: string): Item[] {
+      const ret: Item[] = []
+      return ret;
+      // TODO
+   }
+
+   // TODO:
+   moveSubTree(itemKey: string, anchorItemKey: string, dropItem: Item): void {
+
+   }
+
+   moveItem(itemKey: string, anchorItemKey: string, dropItem: Item): void {
+      console.log("Moving item: ", itemKey, "to after: ", anchorItemKey)
+      const startIdx = this.getItemIndex(itemKey)
+      // endIdx = location to insert in CURRENT array
+      const endIdx = this.getItemIndex(anchorItemKey) + 1
+      console.log("Moving idx: ", startIdx, "to after: ", endIdx, dropItem.numAddress)
+
+      const newItem: Item = {
+         ...dropItem,
+         // isDropZone: false,
+      }
+      delete newItem.isDropZone
+
+      console.log("New Item: ", newItem)
+
+      const $ = this._items
+      if (startIdx < endIdx) {
+         // [ slice1,{startIdx}, slice2, {endIdx}, slice3 ]
+         this._items = [
+            ...$.slice(0, startIdx), // slice1
+            ...$.slice(startIdx + 1, endIdx), // slice2
+            newItem,
+            ...$.slice(endIdx) // slice3
+         ]
+      } else if (endIdx < startIdx) {
+         // [ slice1,{endIdx}, slice2, {startIdx}, slice3 ]
+         this._items = [
+            ...$.slice(0, endIdx), // slice1
+            newItem,
+            ...$.slice(endIdx, startIdx), // slice2
+            ...$.slice(startIdx + 1) // slice3
+         ]
+      } else { // moving to same point on the list: [ slice1, {item}, slice2 ]
+         this._items = [
+            ...$.slice(0, startIdx),
+            newItem,
+            ...$.slice(startIdx + 1)
+         ]
+      }
+      console.log("New Item List: ", this._items)
+   }
+
+   // TODO: rename to getValidDropZoneItems()...which can check for available ancestor siblings on top of child and sibling (by diffing numAddress and nextItem.numAddress)
+   canDrop(dropType: DropType, itemKey: string): boolean {
+      const itemIdx = this.getItemIndex(itemKey)
+      invar(itemIdx !== -1, "This item should exist!")
+
+      const thisItem = this._items[itemIdx]
+      const nextItem = this._items[itemIdx + 1]
+
+      if (!nextItem) return true // not found => thisItem is already last 
+      if (
+         // if next child is already there, neither sibling nor child dropzones can be dropped here
+         // dropType === 'child' &&
+         stringifyNumAddr(nextItem.numAddress) === stringifyNumAddr([...thisItem.numAddress, 1])
+      ) {
+         return false
+      }
+      // no existing child (can return true if dropType === 'child')
+      if (dropType === 'sibling') {
+         const siblingNumAddr = [...thisItem.numAddress]
+         siblingNumAddr[siblingNumAddr.length - 1] += 1
+         // next sibling is already there
+         if (stringifyNumAddr(siblingNumAddr) === stringifyNumAddr(nextItem.numAddress)) {
+            return false
+         }
+      }
+      return true
+   }
+
+}
+
+function generateRandomSortedAddresses(length: number): Address[] {
    const nAddrs: number[][] = [] // easier to work with
    const sAddrs: string[] = []  // we return this
    const addresses: Address[] = []
@@ -29,7 +154,7 @@ function generateAddresses(length: number): Address[] {
          } else if (step === 'sibling') { // eg [1,3,13]
             nextAddr[nextAddr.length - 1] += 1 // sibling
          } else {
-            invariant(false, "This cannot be!")
+            invar(false, "This cannot be!")
          }
       }
       nAddrs.push(nextAddr!)
@@ -55,7 +180,7 @@ function randomStep(options = preset): Step {
    return step
 }
 
-function stringifyNumAddr(addrAsNum: number[]) {
+export function stringifyNumAddr(addrAsNum: number[]) {
    let addrString = ""
    let nextNumber = true
    addrAsNum.forEach(num => {
@@ -72,6 +197,4 @@ function stringifyNumAddr(addrAsNum: number[]) {
    })
    return addrString
 }
-export default generateAddresses
-// test
-// console.log("10 addresses: ", generateAddresses(10))
+export default generateRandomSortedAddresses
