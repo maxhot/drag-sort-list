@@ -12,11 +12,12 @@ import { DropType, Item, SlipboxFiles, stringifyNumAddr } from './utils/addresse
 // TODO: fix dark mode on entire page
 // TODO: signify active dropzone
 // TODO: signify dragged (subtree)
+// TODO: folding
 
 // telemetry
 let listItemRendered = 0
 
-const LEN = 10
+const LEN = 100
 const DEFAULT_INDENT = true
 const slipbox = new SlipboxFiles(
    Array(LEN).fill(null).map((_, i) => { return faker.hacker.phrase() })
@@ -204,7 +205,9 @@ function RegularList({ items, displayType, isIndenting, ...props }: {
                   dndCallbacks={DropZoneDndCallbacks}
                   dragDropCallback={dragDropCallback}
                   indent={isIndenting
-                     ? dropZoneItem.numAddress.length - (dropType === 'child' ? 0 : 1)
+                     // ? dropType === 'child'
+                     // ? dropZoneItem.numAddress.length - 1 
+                     ? dropZoneItem.numAddress.length - 1 + (dropType === 'child' ? 1 : 0)
                      : dropType === 'child' ? 1 : 0
                   }
                />)
@@ -225,6 +228,7 @@ function RegularList({ items, displayType, isIndenting, ...props }: {
 
 
 
+const INDENT_LEVELS = [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
 
 const ListRowItem = memo(({ item, displayType = 'prefix', indent = 0, ...props }: {
    item: Item
@@ -243,11 +247,10 @@ const ListRowItem = memo(({ item, displayType = 'prefix', indent = 0, ...props }
       : displayType === 'prefix'
          ? <><span className="pr-1 text-neutral-400 float-left">{item.address + " - "}</span> {labelSpan}</>
          : displayType === 'suffix'
-            ? <>{`${labelSpan}`} <span className="pl-1 text-neutral-400">{`( ${item.address} )`}</span></>
+            ? <>{labelSpan}<span className="pl-1 text-neutral-400">{`( ${item.address} )`}</span></>
             : 'INVALID'
 
-   const indentLevels = [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
-   const indentLvl = indentLevels[Math.min(indent, indentLevels.length - 1)]
+   const indentLvl = INDENT_LEVELS[Math.min(indent, INDENT_LEVELS.length - 1)]
 
    const motionProps = {
       layout: true,
