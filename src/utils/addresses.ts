@@ -1,8 +1,8 @@
 import invar from "tiny-invariant"
 
 
-// TODO: move entire subtree
-// TODO: don't let any parent move into its own subtree (no direct ancestor moves)
+// TODO: disallow parents dropping into children (no moving into own subtree)
+// TODO: expose all drop zones, not just child and sibling (e.g. parent-sibling, grandparent sibling, etc)
 
 export type Address = {
    strAddress: string,
@@ -46,16 +46,81 @@ export class SlipboxFiles {
       return this._items.findIndex(item => item.itemKey === itemKey)
    }
 
-   // a more elegant alternative to canDrop()
-   getDropZoneItems(hoverItemKey: string): Item[] {
-      const ret: Item[] = []
-      return ret;
-      // TODO
-   }
+
 
    // TODO:
-   moveSubTree(itemKey: string, anchorItemKey: string, dropItem: Item): void {
+   moveSubtree(itemKey: string, anchorItemKey: string, dropItem: Item): void {
+      // similar to moveItem, except we locate and move an entire RANGE of items
+      // 1. find subtree [startIdx, endIdx] starting at itemKey
 
+      const treeStart = this.getItemIndex(itemKey)
+      let treeEnd = treeStart + 1 // slicing boundary
+      const $ = this._items
+      while (treeEnd < $.length && $[treeEnd].address.startsWith($[treeStart].address))
+         treeEnd++
+
+
+      console.log("subtree length:", treeEnd - treeStart)
+
+      // 2. calculate new addresses (numerical and string):
+      const anchor = this.getItem(anchorItemKey)
+      invar(anchor, "Anchor should exist! at" + anchorItemKey)
+      const newTree = []
+      for (let i = treeStart; i < treeEnd; i++) {
+         // 2a. numerical is easy--simply prepend the numerical of the anchorItem
+         const numAddress = [
+            // 1. take anchor as prefix
+            ...dropItem.numAddress, // as anchor
+            // 2. strip entire treeHead address off of node address
+            // 3. combine (1) (anchor) with (2) (tail)
+            ...$[i].numAddress.slice($[treeStart].numAddress.length) // node
+         ]
+         /** example: we want to move the subtree at 10a14... to 2b...
+          * ...here, anchor is 2b, treeHead is 10a14
+          * ...a node like 10a14a would be stripped to "a", or [1]
+          * ...resulting in 2b1
+          */
+
+         // 3. create new subtree using calculated addresses
+         newTree.push({
+            ...$[i], // original item
+            numAddress,
+            address: stringifyNumAddr(numAddress)
+         })
+      }
+      // 4. create new list by slicing out old tree and slicing in new tree (similar to moveItem)
+      const startIdx = treeStart
+      const targetIdx = this.getItemIndex(anchorItemKey) + 1
+      invar(targetIdx !== 0, "anchor not found!")
+      if (startIdx === targetIdx) { // [slice1, newTree, slice2]
+         this._items = [
+            ...$.slice(0, startIdx),
+            ...newTree,
+            ...$.slice(startIdx + newTree.length)
+         ]
+      } else if (startIdx < targetIdx) { // does this work if targetIdx = $.length (we're appending to the end)
+         //            (from) ----------> (to)
+         // [slice1, {oldTree}, slice2, {newTree}, slice3]
+         //          ^ startIdx
+         //                     ^ startIdx + len
+         //                             ^ target
+         this._items = [
+            ...$.slice(0, startIdx),
+            ...$.slice(startIdx + newTree.length, targetIdx),
+            ...newTree,
+            ...$.slice(targetIdx)
+         ]
+      } else if (targetIdx < startIdx) {
+         // [slice1, {newTree}, slice2, {oldTree}, slice3]
+         //                             ^ startIdx
+         this._items = [
+            ...$.slice(0, targetIdx),
+            ...newTree,
+            ...$.slice(targetIdx, startIdx),
+            ...$.slice(startIdx + newTree.length)
+         ]
+      }
+      console.log("New Item List: ", this._items)
    }
 
    moveItem(itemKey: string, anchorItemKey: string, dropItem: Item): void {
@@ -68,7 +133,6 @@ export class SlipboxFiles {
       const newItem: Item = {
          ...dropItem,
          itemKey: itemKey, // use original item key to help AnimatePresence
-         // isDropZone: false,
       }
       delete newItem.isDropZone
 
@@ -99,6 +163,14 @@ export class SlipboxFiles {
          ]
       }
       console.log("New Item List: ", this._items)
+   }
+
+   // a more elegant alternative to canDrop()
+   // returns empty array if none can be dropped here
+   getValidDropZoneItems(draggedItemKey: string, hoverItemKey: string): Item[] {
+      const ret: Item[] = []
+      return ret;
+      // TODO
    }
 
    // TODO: rename to getValidDropZoneItems()...which can check for available ancestor siblings on top of child and sibling (by diffing numAddress and nextItem.numAddress)

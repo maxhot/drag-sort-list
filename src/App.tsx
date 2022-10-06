@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useRef, useState } from 'react';
 import { faker } from '@faker-js/faker';
-import { AnimatePresence, motion, PanInfo, usePresence } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import invar from 'tiny-invariant';
 
 import './App.css';
@@ -10,11 +10,13 @@ import { DropType, Item, SlipboxFiles, stringifyNumAddr } from './utils/addresse
 // TODO: use framer motion
 // TODO: use react-window
 // TODO: fix dark mode on entire page
+// TODO: signify active dropzone
+// TODO: signify dragged (subtree)
 
 // telemetry
 let listItemRendered = 0
 
-const LEN = 100
+const LEN = 10
 const DEFAULT_INDENT = true
 const slipbox = new SlipboxFiles(
    Array(LEN).fill(null).map((_, i) => { return faker.hacker.phrase() })
@@ -128,7 +130,7 @@ function RegularList({ items, displayType, isIndenting, ...props }: {
          case 'onDrop':
             invar(hoverItemKeyRef.current, "on drop should have valid anchor item key")
             invar(draggedItemKeyRef.current, "on drop should have dragged item key")
-            slipbox.moveItem(draggedItemKeyRef.current, hoverItemKeyRef.current, item)
+            slipbox.moveSubtree(draggedItemKeyRef.current, hoverItemKeyRef.current, item)
             // NO need: handled in onDragEnd (which sometimes fires first)
             // setDraggedItemKey(null)
             // setDragEnterItemKey(null)
@@ -191,13 +193,13 @@ function RegularList({ items, displayType, isIndenting, ...props }: {
                label: origItem?.label,
                numAddress: newNumAddr,
                address: newStrAddr,
-               itemKey: `${origItem?.itemKey}+${dropType}`
+               itemKey: `${origItem?.itemKey}+${dropType}` // drop zone key
             }
 
             return (
                <ListRowItem
                   item={dropZoneItem}
-                  itemKey={dropZoneItem.itemKey}
+                  itemKey={dropZoneItem.itemKey} // unnecessary?
                   key={dropZoneItem.itemKey}
                   dndCallbacks={DropZoneDndCallbacks}
                   dragDropCallback={dragDropCallback}
