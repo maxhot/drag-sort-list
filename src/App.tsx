@@ -5,9 +5,8 @@ import invar from 'tiny-invariant';
 
 import './App.css';
 import useToggle, { useForceReRender } from './hooks/useToggle';
-import { DropType, Item, SlipboxFiles, stringifyNumAddr } from './utils/addresses';
+import { Item, DropZoneItem, SlipboxFiles } from './utils/addresses';
 
-// TODO: use framer motion
 // TODO: use react-window
 // TODO: fix dark mode on entire page
 // TODO: signify active dropzone
@@ -74,13 +73,11 @@ function App() {
                </select>
             </div>
          </div>
-         <div className="max-h-full" style={{ height: "100%" }}>
-            <RegularList {...{
-               items: slipbox.getItems(), displayType, isIndenting,
-               forceRender
-            }} />
-            {/* FIXME <AutoReactWindowList {...{ items, displayType, isIndenting }} /> */}
-         </div>
+         <RegularList {...{
+            items: slipbox.getItems(), displayType, isIndenting,
+            forceRender
+         }} />
+         {/* FIXME <AutoReactWindowList {...{ items, displayType, isIndenting }} /> */}
       </div >
    );
 }
@@ -156,67 +153,41 @@ function RegularList({ items, displayType, isIndenting, ...props }: {
       ))
 
    // Insert drop zones
-   const dropZones = draggedItemKey && dragEnterItemKey &&
-      // TODO: address case when there are grand-siblings and great-grand-siblings...
-      /** example:
-       * 21 - 
-       *    21a - 
-       *    21b - 
-       *        21b1
-       *        21b2 (cursor here)
-       * 22 -
-       * 
-       * given the above file list, the drop zone should be:
-       * - 21b2a
-       * - 21b3
-       * - 21c ((sibling of parent))
-       */
+   const [dropZoneItems, insertIdx] = slipbox.getDropZoneItemsFor(draggedItemKey, dragEnterItemKey)
+   if (dropZoneItems) {
+      const subtreeLength = slipbox.getSubtreeLength(draggedItemKey!)
+      itemList.splice(insertIdx, 0, ...dropZoneItems.map(zoneItem => {
+         return (
+            <ListRowItem
+               item={zoneItem}
+               itemKey={zoneItem.itemKey} // unnecessary?
+               key={zoneItem.itemKey}
+               displayType={displayType}
+               qtyDropped={subtreeLength}
+               dndCallbacks={DropZoneDndCallbacks}
+               dragDropCallback={dragDropCallback}
+               indent={!isIndenting
+                  ? 0
+                  : zoneItem.numAddress.length - 1
+               }
+            />)
+      }))
 
-      // TODO: convert to calling getValidDropZoneItems() (should be simpler)
-      (['child', 'sibling'] as DropType[])
-         .filter((dropType: DropType) => slipbox.canDrop(dropType, dragEnterItemKey)) // determine number of drop zones
-         .map(dropType => {
-            const origItem = slipbox.getItem(draggedItemKey)
-            // TODO: test scenario where parent is dropped onto its own subtree
-            const hoverItem = slipbox.getItem(dragEnterItemKey)
-            invar(origItem, `Orig Item should exist! (at key: ${draggedItemKey}`)
-            invar(hoverItem, "Hover Item should exist!")
-
-            // TODO: move this into SlipboxFiles class
-            // ( maybe rename to SlipboxFiles ?? )
-            const newNumAddr = [...hoverItem.numAddress]
-            if (dropType === 'child') newNumAddr.push(1)
-            if (dropType === 'sibling') newNumAddr[newNumAddr.length - 1] += 1
-            const newStrAddr = stringifyNumAddr(newNumAddr)
-
-            const dropZoneItem: Item = {
-               isDropZone: true,
-               label: origItem?.label,
-               numAddress: newNumAddr,
-               address: newStrAddr,
-               itemKey: `${origItem?.itemKey}+${dropType}` // drop zone key
-            }
-
-            return (
-               <ListRowItem
-                  item={dropZoneItem}
-                  itemKey={dropZoneItem.itemKey} // unnecessary?
-                  key={dropZoneItem.itemKey}
-                  dndCallbacks={DropZoneDndCallbacks}
-                  dragDropCallback={dragDropCallback}
-                  indent={isIndenting
-                     // ? dropType === 'child'
-                     // ? dropZoneItem.numAddress.length - 1 
-                     ? dropZoneItem.numAddress.length - 1 + (dropType === 'child' ? 1 : 0)
-                     : dropType === 'child' ? 1 : 0
-                  }
-               />)
-         })
-   if (dropZones && dropZones.length > 0) {
-      const insertIdx = slipbox.getItemIndex(dragEnterItemKey) + 1
-      invar(insertIdx > 0, () => `We couldn't find item at ${dragEnterItemKey}`)
-      itemList.splice(insertIdx, 0, ...dropZones)
    }
+
+   /** example:
+    * 21 - 
+    *    21a - 
+    *    21b - 
+    *        21b1
+    *        21b2 (cursor here)
+    * 22 -
+    * 
+    * given the above file list, the drop zone should be:
+    * - 21b2a
+    * - 21b3
+    * - 21c ((sibling of parent))
+    */
 
    return <AnimatePresence>
       {itemList}
@@ -231,24 +202,31 @@ function RegularList({ items, displayType, isIndenting, ...props }: {
 const INDENT_LEVELS = [0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
 
 const ListRowItem = memo(({ item, displayType = 'prefix', indent = 0, ...props }: {
-   item: Item
+   item: Item | DropZoneItem
    itemKey: string
    displayType?: DisplayType
    indent?: number
    label?: string // allows container to deal with displayType, indentation, etc?
    dndCallbacks: DragDropHandlerType[]
    dragDropCallback: DragDropCallback
+   qtyDropped?: number
 }) => {
    ++listItemRendered // telemetry
 
+   const qty = props.qtyDropped && props.qtyDropped > 1 // we don't care about single items?
+      ? ` - (${props.qtyDropped} items)`
+      : ""
+   // TODO: this should be a separate span from item.address
+
+   // indicate multiple items dropped?
    const labelSpan = <span className={`${item.isDropZone && "invisible"}`} > {item.label}</span >
    const label = displayType === 'hidden'
       ? <span>{labelSpan}</span>
       : displayType === 'prefix'
-         ? <><span className="pr-1 text-neutral-400 float-left">{item.address + " - "}</span> {labelSpan}</>
+         ? <><span className="pr-1 text-neutral-400 float-left">{item.address + qty + " - "}</span> {labelSpan}</>
          : displayType === 'suffix'
-            ? <>{labelSpan}<span className="pl-1 text-neutral-400">{`( ${item.address} )`}</span></>
-            : 'INVALID'
+            ? <>{labelSpan}<span className="pl-1 text-neutral-400">{`( ${item.address} )` + qty}</span></>
+            : labelSpan
 
    const indentLvl = INDENT_LEVELS[Math.min(indent, INDENT_LEVELS.length - 1)]
 
@@ -278,8 +256,10 @@ const ListRowItem = memo(({ item, displayType = 'prefix', indent = 0, ...props }
             }
             , {
                // if DropZone add silencers for DragEnter and DragLeave
-               ...(item.isDropZone && { onDragEnter: (ev: Event) => { ev.preventDefault() } }),
-               ...(item.isDropZone && { onDragOver: (ev: Event) => { ev.preventDefault() } })
+               ...(item.isDropZone && {
+                  onDragEnter: (ev: Event) => { ev.preventDefault() },
+                  onDragOver: (ev: Event) => { ev.preventDefault() }
+               })
             } as any)
          )}
       >

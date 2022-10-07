@@ -11,11 +11,15 @@ export type Address = {
 export type DropType = 'child' | 'sibling'
 
 export type Item = {
-   label?: string,
+   label: string,
    address: string,
    numAddress: number[],
    itemKey: string,
    isDropZone?: boolean
+}
+
+export interface DropZoneItem extends Item {
+   isDropZone: true
 }
 
 export class SlipboxFiles {
@@ -46,9 +50,16 @@ export class SlipboxFiles {
       return this._items.findIndex(item => item.itemKey === itemKey)
    }
 
+   getSubtreeLength(itemKey: string): number {
+      const treeStart = this.getItemIndex(itemKey)
+      let treeEnd = treeStart + 1 // slicing boundary
+      const $ = this._items
+      while (treeEnd < $.length && $[treeEnd].address.startsWith($[treeStart].address))
+         treeEnd++
 
+      return treeEnd - treeStart
+   }
 
-   // TODO:
    moveSubtree(itemKey: string, anchorItemKey: string, dropItem: Item): void {
       // similar to moveItem, except we locate and move an entire RANGE of items
       // 1. find subtree [startIdx, endIdx] starting at itemKey
@@ -123,84 +134,78 @@ export class SlipboxFiles {
       console.log("New Item List: ", this._items)
    }
 
-   moveItem(itemKey: string, anchorItemKey: string, dropItem: Item): void {
-      console.log("Moving item: ", itemKey, "to after: ", anchorItemKey)
-      const startIdx = this.getItemIndex(itemKey)
-      // endIdx = location to insert in CURRENT array
-      const endIdx = this.getItemIndex(anchorItemKey) + 1
-      console.log("Moving idx: ", startIdx, "to after: ", endIdx, dropItem.numAddress)
-
-      const newItem: Item = {
-         ...dropItem,
-         itemKey: itemKey, // use original item key to help AnimatePresence
-      }
-      delete newItem.isDropZone
-
-      console.log("New Item: ", newItem)
-
-      const $ = this._items
-      if (startIdx < endIdx) {
-         // [ slice1,{startIdx}, slice2, {endIdx}, slice3 ]
-         this._items = [
-            ...$.slice(0, startIdx), // slice1
-            ...$.slice(startIdx + 1, endIdx), // slice2
-            newItem,
-            ...$.slice(endIdx) // slice3
-         ]
-      } else if (endIdx < startIdx) {
-         // [ slice1,{endIdx}, slice2, {startIdx}, slice3 ]
-         this._items = [
-            ...$.slice(0, endIdx), // slice1
-            newItem,
-            ...$.slice(endIdx, startIdx), // slice2
-            ...$.slice(startIdx + 1) // slice3
-         ]
-      } else { // moving to same point on the list: [ slice1, {item}, slice2 ]
-         this._items = [
-            ...$.slice(0, startIdx),
-            newItem,
-            ...$.slice(startIdx + 1)
-         ]
-      }
-      console.log("New Item List: ", this._items)
-   }
-
    // a more elegant alternative to canDrop()
    // returns empty array if none can be dropped here
-   getValidDropZoneItems(draggedItemKey: string, hoverItemKey: string): Item[] {
-      const ret: Item[] = []
-      return ret;
-      // TODO
-   }
+   getDropZoneItemsFor(draggedItemKey: string | null, hoverItemKey: string | null)
+      : [null] // empty response
+      | [dropZoneItems: DropZoneItem[], insertIdx: number] {
 
-   // TODO: rename to getValidDropZoneItems()...which can check for available ancestor siblings on top of child and sibling (by diffing numAddress and nextItem.numAddress)
-   canDrop(dropType: DropType, itemKey: string): boolean {
-      const itemIdx = this.getItemIndex(itemKey)
-      invar(itemIdx !== -1, "This item should exist!")
+      const ret: DropZoneItem[] = []
+      if (draggedItemKey === null || hoverItemKey === null) return [null]
 
-      const thisItem = this._items[itemIdx]
-      const nextItem = this._items[itemIdx + 1]
 
-      if (!nextItem) return true // not found => thisItem is already last 
-      if (
-         // if next child is already there, neither sibling nor child dropzones can be dropped here
-         // dropType === 'child' &&
-         stringifyNumAddr(nextItem.numAddress) === stringifyNumAddr([...thisItem.numAddress, 1])
-      ) {
-         return false
+      const draggedItem = this.getItem(draggedItemKey)
+      const hoverItemIdx = this.getItemIndex(hoverItemKey)
+      const hoverItem = this._items[hoverItemIdx]
+      const nextItem: Item | undefined = this._items[hoverItemIdx + 1] // undefined if next is out of bounds
+      invar(nextItem || hoverItemIdx === this._items.length - 1, "next should exist if we're not hovering over the last one")
+
+      invar(hoverItem, () => `item should exist  for key ${hoverItemKey}`)
+      invar(draggedItem, "should exist")
+
+      // 1. return empty (not allowed) if attempting subtree move
+      if (hoverItem.address.startsWith(draggedItem.address))
+         return [null]
+
+      // 2. return empty if first child already exists after hoverItem
+      const firstChildAddr = firstChildAddress(hoverItem)
+      if (hoverItemIdx === this._items.length - 1 || nextItem.address !== firstChildAddr) {
+         // first child dropzone
+         ret.push({
+            isDropZone: true,
+            label: draggedItem.label,
+            address: firstChildAddr,
+            numAddress: [...hoverItem.numAddress, 1],
+            itemKey: `${draggedItem.itemKey}+child`
+         })
+      } else { // next child exists => no drop zones here
+         return [null]
       }
-      // no existing child (can return true if dropType === 'child')
-      if (dropType === 'sibling') {
-         const siblingNumAddr = [...thisItem.numAddress]
-         siblingNumAddr[siblingNumAddr.length - 1] += 1
-         // next sibling is already there
-         if (stringifyNumAddr(siblingNumAddr) === stringifyNumAddr(nextItem.numAddress)) {
-            return false
-         }
-      }
-      return true
-   }
 
+      if (hoverItemIdx === this._items.length - 1) { // special case-- last time
+
+      }
+
+      function nextSiblingNumAddress(item: Item) {
+         return [
+            ...item.numAddress.slice(0, -1),
+            item.numAddress[item.numAddress.length - 1] + 1
+         ]
+      }
+
+      // 4. add ancestor siblings until we reach next level?
+      let numAddr: number[] = nextSiblingNumAddress(hoverItem)
+      do {
+         const nextAddr = stringifyNumAddr(numAddr)
+         if (nextItem?.address === nextAddr) break; // sibling already exists, no drop zone
+
+         console.log("Adding nextAddr dropzone: ", nextAddr)
+         ret.push({
+            isDropZone: true,
+            label: draggedItem.label,
+            address: nextAddr,
+            numAddress: numAddr,
+            itemKey: `${draggedItemKey}+${numAddr.length}`, // should be unique 
+         })
+         numAddr = numAddr.slice(0, -1)
+         numAddr[numAddr.length - 1]++
+      } while (numAddr.length >= (nextItem?.numAddress.length ?? 1))
+
+      return [
+         ret,
+         hoverItemIdx + 1
+      ]
+   }
 }
 
 function generateRandomSortedAddresses(length: number): Address[] {
@@ -270,4 +275,9 @@ export function stringifyNumAddr(addrAsNum: number[]) {
    })
    return addrString
 }
+
+function firstChildAddress(item: Item): string {
+   return stringifyNumAddr([...item.numAddress, 1])
+}
+
 export default generateRandomSortedAddresses
