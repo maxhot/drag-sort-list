@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/drag-sort-list/static/css/main.bc7fd950.css",
+    "main.js": "/drag-sort-list/static/js/main.c133a67c.js",
+    "static/js/787.1ce9af76.chunk.js": "/drag-sort-list/static/js/787.1ce9af76.chunk.js",
+    "index.html": "/drag-sort-list/index.html",
+    "main.bc7fd950.css.map": "/drag-sort-list/static/css/main.bc7fd950.css.map",
+    "main.c133a67c.js.map": "/drag-sort-list/static/js/main.c133a67c.js.map",
+    "787.1ce9af76.chunk.js.map": "/drag-sort-list/static/js/787.1ce9af76.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.bc7fd950.css",
+    "static/js/main.c133a67c.js"
+  ]
+}
